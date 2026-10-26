@@ -40,54 +40,52 @@ curl -X POST localhost:8000/predict -H 'Content-Type: application/json' \
   -d '{"Time": 1000, "Amount": 25.5, "features": {"V1": 0, "V2": 0, ... "V28": 0}}'
 ```
 
-## Running it step by step (macOS / Linux)
+## Running it step by step
+Commands are for macOS and Linux.
 
-**1. Get the code and go into the folder**
+**1. Clone the repo**
 ```bash
 git clone https://github.com/sunburnpeell/credit-card-fraud-detection.git
 cd credit-card-fraud-detection
 ```
 
-**2. Create a virtual environment and install the packages** (first time only)
+**2. Set up a virtual environment** (first time only)
 ```bash
 python3 -m venv .venv
-source .venv/bin/activate        # the prompt now starts with (.venv)
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-**3. Download the dataset** (about 150 MB, not stored in this repo)
+**3. Get the data.** The CSV is about 150 MB, so it isn't in the repo. This is a public mirror of the Kaggle file:
 ```bash
 mkdir -p data
 curl -L -o data/creditcard.csv https://storage.googleapis.com/download.tensorflow.org/data/creditcard.csv
 ```
-This is a public copy of the Kaggle file. You can also download it from Kaggle and save it as `data/creditcard.csv`.
 
-**4. Train the model** (about a minute)
+**4. Train.** Takes about a minute on a laptop CPU.
 ```bash
 make train
 ```
-Expected output:
+You should see:
 ```
 train=199,364 val=42,721 test=42,722 | fraud rate train=0.1926% test=0.1217%
 Logistic Regression  PR-AUC=0.721 P=0.844 R=0.731 F1=0.784 (TP=38 FP=7 FN=14)
 XGBoost              PR-AUC=0.757 P=0.765 R=0.750 F1=0.757 (TP=39 FP=12 FN=13)
 Saved model + results.
 ```
-This saves the model to `models/xgb_fraud.joblib` and the metrics and plots to `results/`.
+The model goes to `models/xgb_fraud.joblib`, metrics and plots to `results/`.
 
-**5. Run the tests**
+**5. Test**
 ```bash
-make test        # expected: 4 passed
+make test        # 4 passed
 ```
 
-**6. Score transactions from a CSV file**
-
-Put the transactions in `input.csv`, with an `id` column, `Time`, `V1`-`V28` and `Amount`. A `Class` column is optional; if it's there, each prediction is marked right or wrong:
+**6. Score your own transactions.** Put them in `input.csv` with an `id` column plus `Time`, `V1`-`V28` and `Amount`. `Class` is optional; if it's there, each prediction gets marked right or wrong.
 ```
 id,Time,V1,V2,...,V28,Amount,Class
 F01,155548.0,1.878230031,1.325629574,...,0.005237667,7.06,1
 ```
-Save this as `score.py` in the project folder:
+Save this as `score.py`:
 ```python
 import pandas as pd
 from fastapi.testclient import TestClient
@@ -102,11 +100,11 @@ for _, r in pd.read_csv("input.csv").iterrows():
         ok = "right" if int(j["is_fraud"]) == r.Class else "WRONG"
     print(f"{r.id}  p={j['fraud_probability']:.3f}  fraud={j['is_fraud']}  {j['risk_level']:6} {ok}")
 ```
-Run it:
+Then run:
 ```bash
 PYTHONPATH=src python score.py
 ```
-Example output (10 frauds and 10 legitimate transactions from the test slice; 18 of 20 correct):
+I tried it on 10 frauds and 10 legit transactions from the test slice. It got 18 of 20:
 ```
 F01  p=0.160  fraud=False  medium WRONG
 F02  p=0.088  fraud=False  low    WRONG
@@ -114,36 +112,15 @@ F03  p=0.517  fraud=True  high   right
 ...
 L10  p=0.085  fraud=False  low    right
 ```
-
-**7. Or use the API in your browser**
-```bash
-make serve
-```
-Open http://127.0.0.1:8000/docs, click **POST /predict**, then **Try it out**, paste a transaction and click **Execute**. Example response:
-```json
-{
-  "fraud_probability": 0.517,
-  "is_fraud": true,
-  "threshold": 0.258,
-  "risk_level": "high",
-  "top_factors": [
-    {"feature": "V14", "impact": 3.11},
-    {"feature": "V17", "impact": 1.10},
-    {"feature": "V10", "impact": 0.91}
-  ]
-}
-```
-Press `Ctrl + C` to stop the server.
+The two it missed (F01, F02) don't have the strongly negative V14 that most frauds have, so they look normal to the model.
 
 **Reading the output**
-- `fraud_probability`: the model's score. The scores aren't calibrated: legitimate transactions sit around 0.08.
-- `is_fraud`: true when the score is at or above the threshold (0.258, tuned on the validation set).
-- `risk_level`: `high` at or above the threshold, `medium` from half the threshold up to it, `low` below that.
-- `top_factors`: the three features that moved this score most. Positive pushes towards fraud, negative pushes away.
+- `p` is the fraud score. It isn't calibrated: legit transactions sit around 0.08, so read it as a ranking, not a real probability.
+- `fraud` is true when `p` is at or above the threshold (0.258, tuned on validation).
+- Risk level is `high` above the threshold, `medium` from half the threshold up, `low` below that.
 
-**Next time**, you only need:
+**Next time**, it's just:
 ```bash
-cd credit-card-fraud-detection
 source .venv/bin/activate
 PYTHONPATH=src python score.py
 ```
