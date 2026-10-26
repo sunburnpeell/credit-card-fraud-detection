@@ -1,6 +1,6 @@
-# Fraud Detection AI
+# Credit Card Fraud Detection
 
-Real-time credit card fraud detection: an XGBoost model on the highly imbalanced
+Real-time fraud scoring for card transactions: an XGBoost model on the highly imbalanced
 [Kaggle / ULB credit card dataset](https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud)
 (284,807 transactions, 0.17% fraud), served through a FastAPI endpoint that also explains each decision.
 
